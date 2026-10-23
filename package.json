@@ -1,0 +1,262 @@
+{
+  "name": "prime-vs",
+  "displayName": "Prime VS",
+  "description": "Drive Prime-Agent from VS Code: streaming chat, tool calls and session control.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onView:primevs.chatView"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "primevs",
+          "title": "Prime VS",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "primevs": [
+        {
+          "type": "webview",
+          "id": "primevs.chatView",
+          "name": "Chat"
+        },
+        {
+          "type": "webview",
+          "id": "primevs.manageView",
+          "name": "Manage"
+        },
+        {
+          "id": "primevs.changesView",
+          "name": "Changes"
+        },
+        {
+          "id": "primevs.todoView",
+          "name": "Todo"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "primevs.newSession",
+        "title": "Prime VS: New Session",
+        "icon": "$(add)"
+      },
+      {
+        "command": "primevs.stop",
+        "title": "Prime VS: Stop"
+      },
+      {
+        "command": "primevs.showTranscript",
+        "title": "Prime VS: Show Session Transcript (HTML)"
+      },
+      {
+        "command": "primevs.pickModel",
+        "title": "Prime VS: Pick Model"
+      },
+      {
+        "command": "primevs.manage",
+        "title": "Prime VS: Open Management Panel",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "primevs.compact",
+        "title": "Prime VS: Compact Context"
+      },
+      {
+        "command": "primevs.fork",
+        "title": "Prime VS: Fork Session"
+      },
+      {
+        "command": "primevs.clone",
+        "title": "Prime VS: Clone Session"
+      },
+      {
+        "command": "primevs.stats",
+        "title": "Prime VS: Session Stats"
+      },
+      {
+        "command": "primevs.viewDiff",
+        "title": "Prime VS: View Diff",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "primevs.revertChange",
+        "title": "Prime VS: Revert Change",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "primevs.clearChanges",
+        "title": "Prime VS: Clear Changes",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "primevs.todoAdd",
+        "title": "Prime VS: Add Todo Item",
+        "icon": "$(add)"
+      },
+      {
+        "command": "primevs.todoStart",
+        "title": "Start",
+        "icon": "$(play)"
+      },
+      {
+        "command": "primevs.todoToggleAuto",
+        "title": "Toggle Auto",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "primevs.todoEdit",
+        "title": "Edit",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "primevs.todoDelete",
+        "title": "Delete",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "primevs.todoClearDone",
+        "title": "Prime VS: Clear Done Todo Items",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "primevs.todoToggleAutoMode",
+        "title": "Prime VS: Toggle Todo Auto Mode",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "primevs.setSessionSaveMode",
+        "title": "Prime VS: Set Session Save Mode",
+        "icon": "$(save-as)"
+      },
+      {
+        "command": "primevs.saveSessionNow",
+        "title": "Prime VS: Save Session Now",
+        "icon": "$(save)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "primevs.newSession",
+          "when": "view == primevs.chatView",
+          "group": "navigation"
+        },
+        {
+          "command": "primevs.pickModel",
+          "when": "view == primevs.chatView",
+          "group": "navigation"
+        },
+        {
+          "command": "primevs.manage",
+          "when": "view == primevs.manageView",
+          "group": "navigation"
+        },
+        {
+          "command": "primevs.clearChanges",
+          "when": "view == primevs.changesView",
+          "group": "navigation"
+        },
+        {
+          "command": "primevs.todoAdd",
+          "when": "view == primevs.todoView",
+          "group": "navigation"
+        },
+        {
+          "command": "primevs.todoToggleAutoMode",
+          "when": "view == primevs.todoView",
+          "group": "navigation"
+        },
+        {
+          "command": "primevs.todoClearDone",
+          "when": "view == primevs.todoView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "primevs.todoStart",
+          "when": "viewItem == todoOpen",
+          "group": "inline"
+        },
+        {
+          "command": "primevs.todoToggleAuto",
+          "when": "viewItem == todoOpen || viewItem == todoDone",
+          "group": "inline"
+        },
+        {
+          "command": "primevs.todoEdit",
+          "when": "viewItem == todoOpen || viewItem == todoDone",
+          "group": "inline"
+        },
+        {
+          "command": "primevs.todoDelete",
+          "when": "viewItem == todoOpen || viewItem == todoDone",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Prime VS",
+      "properties": {
+        "primevs.agentPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the prime-agent binary. Leave empty to auto-detect."
+        },
+        "primevs.sessionSaveMode": {
+          "type": "string",
+          "enum": [
+            "full",
+            "summarized",
+            "none"
+          ],
+          "enumDescriptions": [
+            "Save the full session transcript into .primevs/sessions/.",
+            "Save a compacted summary + recent messages into .primevs/sessions/.",
+            "Do not save the session in the project."
+          ],
+          "default": "full",
+          "description": "Default session save mode for new sessions. Change per session with 'Prime VS: Set Session Save Mode'."
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "primevs.newSession",
+        "key": "ctrl+alt+n",
+        "when": "view == primevs.chatView"
+      },
+      {
+        "command": "primevs.stop",
+        "key": "ctrl+alt+s",
+        "when": "view == primevs.chatView"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.5.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://example.invalid/prime-vs"
+  }
+}
