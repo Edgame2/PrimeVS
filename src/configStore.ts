@@ -73,9 +73,16 @@ export interface ManagementSnapshot {
   goal: {
     active: boolean;
     status: string;
-    objective: string;
+    goalId?: string;
+    objective?: string;
     tokenBudget?: number;
     tokensUsed: number;
+    timeUsedSeconds: number;
+    continuationsUsed: number;
+    createdAt?: number;
+    updatedAt?: number;
+    lastReason?: string;
+    lastError?: string;
   } | null;
   schedules: Array<{
     id: string;

@@ -276,6 +276,57 @@
     for (const f of others) readTextFile(f);
   }
 
+  // Convert a `file://` URI (or a raw path) into a display path.
+  function uriToPath(u) {
+    const s = String(u || "").trim();
+    if (!s) return "";
+    try {
+      if (s.startsWith("file://")) {
+        return decodeURIComponent(new URL(s).pathname);
+      }
+      if (s.startsWith("vscode-file://")) {
+        // vscode-file URIs look like vscode-file://host/path
+        const noScheme = s.slice("vscode-file://".length);
+        const slash = noScheme.indexOf("/");
+        return decodeURIComponent(slash >= 0 ? noScheme.slice(slash) : noScheme);
+      }
+    } catch {
+      // fall through
+    }
+    return s;
+  }
+
+  // Extract file paths from a VS Code Explorer drag. Explorer drags do not
+  // provide File objects; they provide the path as text/uri-list or text/plain
+  // (and sometimes the custom ResourceURLs type).
+  function pathsFromExplorerDrop(e) {
+    const dt = e.dataTransfer;
+    if (!dt) return [];
+    const candidates = [];
+    const pushLines = (s) => {
+      if (s && s.trim()) {
+        for (const line of String(s).split(/\r?\n/)) {
+          if (line.trim()) candidates.push(line.trim());
+        }
+      }
+    };
+    pushLines(dt.getData("text/uri-list"));
+    if (!candidates.length) pushLines(dt.getData("application/vnd.code.uri-list"));
+    if (!candidates.length) {
+      try {
+        const resources = dt.getData("ResourceURLs");
+        if (resources) {
+          const parsed = JSON.parse(resources);
+          if (Array.isArray(parsed)) candidates.push(...parsed.map(String));
+        }
+      } catch {
+        // ignore
+      }
+    }
+    if (!candidates.length) pushLines(dt.getData("text/plain"));
+    return candidates.map(uriToPath).filter(Boolean);
+  }
+
   let dragDepth = 0;
   document.addEventListener("dragenter", (e) => { e.preventDefault(); dragDepth++; document.body.classList.add("dragging"); });
   document.addEventListener("dragover", (e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = "copy"; });
@@ -284,15 +335,28 @@
     e.preventDefault();
     dragDepth = 0;
     document.body.classList.remove("dragging");
-    // 1) VS Code Explorer drop: text/uri-list -> ask the extension to read files
-    const uriList = e.dataTransfer && e.dataTransfer.getData("text/uri-list");
-    if (uriList) {
-      post({ type: "dropUris", uris: uriList.split("\n").map((s) => s.trim()).filter(Boolean) });
-      return;
-    }
-    // 2) OS drop: real File objects
+    // 1) OS drop: real File objects (content / images).
     if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
       handleDroppedFiles(Array.from(e.dataTransfer.files));
+      return;
+    }
+    // 2) VS Code Explorer drop: capture the file path(s) into the input.
+    const paths = pathsFromExplorerDrop(e);
+    if (paths.length) {
+      inputEl.value += (inputEl.value ? "\n" : "") + paths.join("\n");
+      inputEl.focus();
+    } else {
+      // Nothing recognisable found — report the raw drag types so the user can
+      // check the "Prime VS" output channel if it still fails.
+      const dt = e.dataTransfer;
+      if (dt) {
+        post({
+          type: "dropDebug",
+          types: Array.from(dt.types || []),
+          plain: dt.getData("text/plain") || "",
+          uriList: dt.getData("text/uri-list") || "",
+        });
+      }
     }
   });
 

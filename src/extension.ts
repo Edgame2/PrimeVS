@@ -42,7 +42,8 @@ type FromWebview =
   | { type: "stop" }
   | { type: "attach" }
   | { type: "renameRequest"; id: string }
-  | { type: "dropUris"; uris: string[] };
+  | { type: "dropUris"; uris: string[] }
+  | { type: "dropDebug"; types: string[]; plain: string; uriList: string };
 
 let sessions: SessionManager | undefined;
 let manageProvider: ManageViewProvider | undefined;
@@ -167,13 +168,21 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     try {
       const res = await sessions.activeAgent()!.request({ type: "get_commands" });
+      const commands: Array<{ name: string; description: string }> = [
+        { name: "goal", description: "Set or view a persistent goal; supports pause, resume, clear" },
+        { name: "compact", description: "Compact the session context; optional instructions" },
+        { name: "refine", description: "Refine continual harness prompt notes, skills, subagents, memory" },
+        { name: "autonomous", description: "Set or view autonomous mode" },
+      ];
       if (res.success && Array.isArray(res.data?.commands)) {
-        const commands = res.data.commands.map((c: any) => ({
-          name: String(c?.name ?? ""),
-          description: String(c?.description ?? ""),
-        }));
-        post(this.view.webview, { type: "commands", commands });
+        for (const c of res.data.commands) {
+          const name = String(c?.name ?? "");
+          if (name && !commands.some((x) => x.name === name)) {
+            commands.push({ name, description: String(c?.description ?? "") });
+          }
+        }
       }
+      post(this.view.webview, { type: "commands", commands });
     } catch {
       // commands are best-effort
     }
@@ -293,6 +302,11 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
         }
         break;
       }
+      case "dropDebug":
+        outputChannel.appendLine(
+          `[drop] types=${JSON.stringify(message.types)} text/plain=${JSON.stringify(message.plain.slice(0, 200))} text/uri-list=${JSON.stringify(message.uriList.slice(0, 200))}`
+        );
+        break;
       case "dropUris": {
         const result = await this.readDroppedUris(message.uris);
         if (this.view && (result.text || result.images.length)) {
@@ -551,6 +565,30 @@ export function activate(context: vscode.ExtensionContext): void {
     onSessionEvent: (sessionId, event) => {
       if (event.type === "extension_ui_request") {
         void handleExtensionUiRequest(sessionId, event);
+        return;
+      }
+      if (event.type === "goal_update") {
+        if (sessionId === sessions?.activeId && manageProvider) {
+          const g = event.goal ?? null;
+          manageProvider.goalUpdate(
+            g
+              ? {
+                  active: Boolean(g.active),
+                  status: String(g.status ?? "idle"),
+                  goalId: g.goalId ? String(g.goalId) : undefined,
+                  objective: g.objective ? String(g.objective) : undefined,
+                  tokenBudget: typeof g.tokenBudget === "number" ? g.tokenBudget : undefined,
+                  tokensUsed: typeof g.tokensUsed === "number" ? g.tokensUsed : 0,
+                  timeUsedSeconds: typeof g.timeUsedSeconds === "number" ? g.timeUsedSeconds : 0,
+                  continuationsUsed: typeof g.continuationsUsed === "number" ? g.continuationsUsed : 0,
+                  createdAt: typeof g.createdAt === "number" ? g.createdAt : undefined,
+                  updatedAt: typeof g.updatedAt === "number" ? g.updatedAt : undefined,
+                  lastReason: g.lastReason ? String(g.lastReason) : undefined,
+                  lastError: g.lastError ? String(g.lastError) : undefined,
+                }
+              : null
+          );
+        }
         return;
       }
       provider.sessionEvent(sessionId, event);

@@ -21,14 +21,19 @@ type ManageRequest =
   | { action: "deleteMcp"; name: string }
   | { action: "newSession" }
   | { action: "renameSession"; name: string }
-  | { action: "createGoal"; objective: string; tokenBudget?: number }
+  | { action: "goalSet"; objective: string; tokenBudget?: number }
+  | { action: "goalPause" }
+  | { action: "goalResume" }
+  | { action: "goalClear" }
+  | { action: "goalStatus" }
   | { action: "addSchedule"; schedule: string; prompt: string }
   | { action: "cancelSchedule"; jobId: string }
   | { action: "setHeartbeat"; schedule: string; prompt: string; deliveryMode?: string };
 
 type ManageResponse =
   | { type: "snapshot"; data: ManagementSnapshot }
-  | { type: "status"; text: string; kind: "info" | "error" };
+  | { type: "status"; text: string; kind: "info" | "error" }
+  | { type: "goalUpdate"; goal: NonNullable<ManagementSnapshot["goal"]> | null };
 
 function execJson(command: string, args: string[]): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -76,6 +81,10 @@ export class ManageViewProvider implements vscode.WebviewViewProvider {
     this.post({ type: "status", text, kind });
   }
 
+  goalUpdate(goal: ManagementSnapshot["goal"]): void {
+    this.post({ type: "goalUpdate", goal });
+  }
+
   async snapshot(): Promise<ManagementSnapshot> {
     const auth = readAuth();
     const settings = readSettings();
@@ -108,13 +117,20 @@ export class ManageViewProvider implements vscode.WebviewViewProvider {
             id: String(data.model.id ?? ""),
           };
         }
-        if (data.goal && data.goal.active) {
+        if (data.goal && (data.goal.active || data.goal.status !== "idle")) {
           goal = {
-            active: true,
-            status: String(data.goal.status ?? ""),
-            objective: String(data.goal.objective ?? ""),
+            active: Boolean(data.goal.active),
+            status: String(data.goal.status ?? "idle"),
+            goalId: data.goal.goalId ? String(data.goal.goalId) : undefined,
+            objective: data.goal.objective ? String(data.goal.objective) : undefined,
             tokenBudget: typeof data.goal.tokenBudget === "number" ? data.goal.tokenBudget : undefined,
             tokensUsed: typeof data.goal.tokensUsed === "number" ? data.goal.tokensUsed : 0,
+            timeUsedSeconds: typeof data.goal.timeUsedSeconds === "number" ? data.goal.timeUsedSeconds : 0,
+            continuationsUsed: typeof data.goal.continuationsUsed === "number" ? data.goal.continuationsUsed : 0,
+            createdAt: typeof data.goal.createdAt === "number" ? data.goal.createdAt : undefined,
+            updatedAt: typeof data.goal.updatedAt === "number" ? data.goal.updatedAt : undefined,
+            lastReason: data.goal.lastReason ? String(data.goal.lastReason) : undefined,
+            lastError: data.goal.lastError ? String(data.goal.lastError) : undefined,
           };
         }
       }
@@ -316,7 +332,7 @@ export class ManageViewProvider implements vscode.WebviewViewProvider {
           }
           break;
         }
-        case "createGoal": {
+        case "goalSet": {
           const agent = this.getAgent();
           if (!agent) {
             this.status("Agent is not running", "error");
@@ -327,16 +343,28 @@ export class ManageViewProvider implements vscode.WebviewViewProvider {
             this.status("Objective is empty", "error");
             return;
           }
-          const budgetArg = req.tokenBudget && req.tokenBudget > 0 ? `, token_budget=${req.tokenBudget}` : "";
-          const prompt = [
-            "Create a persistent thread goal now using the goal skill in IPython:",
-            `\`\`\`python`,
-            `await goal.create(${JSON.stringify(objective)}${budgetArg})`,
-            `\`\`\``,
-            "Do not start working on the objective yet. Just create the goal, then report its status back.",
-          ].join("\n");
-          agent.send({ type: "prompt", message: prompt });
-          this.status("Goal creation requested — check the Chat view.");
+          const budget = req.tokenBudget && req.tokenBudget > 0 ? `--budget ${req.tokenBudget} ` : "";
+          agent.send({ type: "prompt", message: `/goal ${budget}${objective}` });
+          this.status("Goal set — the agent will pursue it.");
+          break;
+        }
+        case "goalPause": {
+          this.getAgent()?.send({ type: "prompt", message: "/goal pause" });
+          this.status("Goal pause requested.");
+          break;
+        }
+        case "goalResume": {
+          this.getAgent()?.send({ type: "prompt", message: "/goal resume" });
+          this.status("Goal resume requested.");
+          break;
+        }
+        case "goalClear": {
+          this.getAgent()?.send({ type: "prompt", message: "/goal clear" });
+          this.status("Goal clear requested.");
+          break;
+        }
+        case "goalStatus": {
+          this.getAgent()?.send({ type: "prompt", message: "/goal status" });
           break;
         }
       }

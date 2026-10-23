@@ -225,26 +225,44 @@
   function renderGoals(pane) {
     const g = snapshot.goal;
     const s = section("Thread goal");
-    if (g && g.active) {
+    if (g) {
       s.appendChild(el("div", "", `Status: ${g.status}`));
-      s.appendChild(el("div", "", `Objective: ${g.objective}`));
+      if (g.objective) s.appendChild(el("div", "", `Objective: ${g.objective}`));
+      if (g.goalId) s.appendChild(el("div", "muted", `ID: ${g.goalId}`));
       if (g.tokenBudget) s.appendChild(el("div", "muted", `Budget: ${g.tokenBudget} tokens`));
-      s.appendChild(el("div", "muted", `Tokens used: ${g.tokensUsed}`));
+      s.appendChild(el("div", "muted", `Tokens used: ${g.tokensUsed} · Time: ${(g.timeUsedSeconds / 60).toFixed(1)} min · Continuations: ${g.continuationsUsed}`));
+      if (g.lastReason) s.appendChild(el("div", "muted", `Reason: ${g.lastReason}`));
+      if (g.lastError) s.appendChild(el("div", "error", `Error: ${g.lastError}`));
     } else {
       s.appendChild(el("div", "muted", "No active goal."));
     }
     pane.appendChild(s);
 
-    const create = section("Create goal");
+    const controls = section("Controls");
+    const row = el("div", "row");
+    row.appendChild(button("Refresh", () => post({ action: "goalStatus" })));
+    if (g && (g.status === "active" || g.status === "budget_limited")) {
+      row.appendChild(button("Pause", () => post({ action: "goalPause" })));
+    }
+    if (g && (g.status === "paused" || g.status === "budget_limited")) {
+      row.appendChild(button("Resume", () => post({ action: "goalResume" })));
+    }
+    if (g) {
+      row.appendChild(button("Clear", () => post({ action: "goalClear" })));
+    }
+    controls.appendChild(row);
+    pane.appendChild(controls);
+
+    const create = section("Set goal");
     const objInput = el("textarea");
     objInput.placeholder = "Objective for the persistent goal";
     const budgetInput = input("", "token budget (optional)");
     create.appendChild(field("Objective", objInput));
     create.appendChild(field("Token budget", budgetInput));
-    create.appendChild(button("Create goal", () => {
+    create.appendChild(button("Set goal", () => {
       if (!objInput.value.trim()) { setStatus("Objective is required", "error"); return; }
       post({
-        action: "createGoal",
+        action: "goalSet",
         objective: objInput.value.trim(),
         tokenBudget: budgetInput.value.trim() ? parseInt(budgetInput.value.trim(), 10) : undefined,
       });
@@ -323,6 +341,10 @@
       render();
     } else if (msg.type === "status") {
       setStatus(msg.text, msg.kind);
+    } else if (msg.type === "goalUpdate") {
+      snapshot = snapshot || {};
+      snapshot.goal = msg.goal;
+      if (activeTab === "goals") render();
     }
   });
 
